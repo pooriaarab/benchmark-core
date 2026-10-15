@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { defineBenchmark, exactMatch, jsonSchemaMatch, mockAdapter, numericWithin, regexMatch, run } from "../dist/index.js";
+const tasks = Array.from({ length: 4 }, (_, index) => ({ id: String(index), prompt: `Return ${index}`, expected: String(index) }));
+const benchmark = defineBenchmark({ id: "smoke", name: "Smoke", tagline: "Smoke", tags: ["science"], category: "test", whatItMeasures: "Core execution", version: "0.1.0", status: "alpha", tasks, grade: (task, answer) => exactMatch(task.expected, answer), provenance: [], gradingMethod: "exact match" });
+const report = await run(benchmark, mockAdapter({ seed: 1 }), { concurrency: 2 }); assert.equal(report.rows.length, 4); assert.ok(report.mean > 0 && report.mean < 1);
+const calls = new Map(); const retryAdapter = { id: "retry", async generate(task) { const count = (calls.get(task.id) ?? 0) + 1; calls.set(task.id, count); if (count === 1) throw new Error("transient"); return { answer: task.expected }; } };
+const retried = await run(benchmark, retryAdapter, { retries: 1 }); assert.ok(retried.rows.every((row) => row.attempts === 2 && !row.error));
+const slowAdapter = { id: "slow", generate(_task, context) { return new Promise((_resolve, reject) => context.signal.addEventListener("abort", () => reject(context.signal.reason), { once: true })); } };
+const timedOut = await run(benchmark, slowAdapter, { timeoutMs: 5 }); assert.ok(timedOut.rows.every((row) => row.error?.includes("timed out")));
+const failed = await run(benchmark, { id: "fails", async generate() { throw new Error("permanent"); } }, { retries: 1 }); assert.ok(failed.rows.every((row) => row.attempts === 2 && row.error === "permanent"));
+assert.equal(regexMatch(/^ok$/, "ok").score, 1); assert.equal(numericWithin(10, 0.1, 10.05).score, 1); assert.equal(jsonSchemaMatch({ type: "object", required: ["ok"], properties: { ok: { type: "boolean" } } }, { ok: true }).score, 1);
+console.log(`core e2e: ${report.rows.length} tasks, retry 2 attempts, timeout/error rows, 4 graders -> runner failure paths passed, ok`);
