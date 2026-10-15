@@ -1,7 +1,7 @@
 {
   "name": "benchmark-core",
   "version": "0.1.0",
-  "description": "Typed engine for building AI benchmarks with SDK, CLI, MCP, and HTTP API surfaces.",
+  "description": "Typed engine for single-answer and tool-use AI benchmarks with SDK, CLI, MCP, and HTTP API surfaces.",
   "keywords": [
     "ai-benchmark",
     "llm-evaluation",
@@ -12,7 +12,9 @@
     "openai",
     "mcp",
     "typescript",
-    "benchmark-runner"
+    "benchmark-runner",
+    "tool-use",
+    "agent-benchmark"
   ],
   "homepage": "https://aibenchmarkindex.com",
   "bugs": "https://github.com/pooriaarab/benchmark-core/issues",
