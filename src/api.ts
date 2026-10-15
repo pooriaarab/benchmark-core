@@ -36,7 +36,7 @@ export function createHandler(benchmark: Benchmark) {
     } catch (caught) {
       if (caught instanceof Error && caught.message === "REQUEST_TOO_LARGE") return error("REQUEST_TOO_LARGE", `Request bodies may not exceed ${LIMIT} bytes.`, 413);
       if (caught instanceof Error && caught.message === "INVALID_JSON") return error("INVALID_JSON", "Request body must be valid JSON.", 400);
-      return error("INTERNAL_ERROR", caught instanceof Error ? caught.message : "Unknown error.", 500, cors);
+      console.error("benchmark-core handler error", caught); return error("INTERNAL_ERROR", "Unexpected server error.", 500, cors);
     }
   };
 }
@@ -49,8 +49,8 @@ export async function serve(handler: (request: Request) => Promise<Response>, op
       if (size) init.body = Buffer.concat(chunks);
       const response = await handler(new Request(`http://${incoming.headers.host ?? "localhost"}${incoming.url ?? "/"}`, init));
       outgoing.writeHead(response.status, Object.fromEntries(response.headers)); outgoing.end(Buffer.from(await response.arrayBuffer()));
-    } catch (caught) { outgoing.writeHead(500, { "content-type": "application/json" }); outgoing.end(JSON.stringify({ error: { code: "INTERNAL_ERROR", message: caught instanceof Error ? caught.message : "Unknown error." } })); }
+    } catch (caught) { console.error("benchmark-core server error", caught); outgoing.writeHead(500, { "content-type": "application/json" }); outgoing.end(JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "Unexpected server error." } })); }
   });
-  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(options.port, options.hostname ?? "0.0.0.0", resolve); });
+  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(options.port, options.hostname ?? "127.0.0.1", resolve); });
   return server;
 }
