@@ -1,8 +1,8 @@
-# Arithmetic word problems provenance
+# Arithmetic and tool-use examples provenance
 
 This file is generated from the benchmark definition.
 
-## Seeded arithmetic generator
+## Seeded arithmetic and order generator
 
 - Kind: `synthetic`
 - URL: https://github.com/pooriaarab/benchmark-core/blob/main/examples/echo/scripts/generate.mjs
