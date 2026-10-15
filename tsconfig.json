@@ -3,7 +3,7 @@
     "target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
     "strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true,
     "declaration": true, "esModuleInterop": true, "skipLibCheck": true,
-    "lib": ["ES2022", "DOM"], "outDir": "dist"
+    "lib": ["ES2022", "DOM", "DOM.Iterable"], "outDir": "dist"
   },
   "include": ["src/**/*.ts", "examples/**/*.ts"]
 }
