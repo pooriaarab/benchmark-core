@@ -7,7 +7,7 @@ const items = ["apples", "books", "marbles", "tickets", "seed packets"];
 const tasks = Array.from({ length: 20 }, (_, index) => {
   const start = 8 + Math.floor(random() * 43); const change = 2 + Math.floor(random() * 8); const add = random() > 0.45;
   const person = people[index % people.length]; const item = items[Math.floor(index / people.length)];
-  return { id: `arithmetic-${String(index + 1).padStart(2, "0")}`, prompt: add ? `${person} has ${start} ${item} and gets ${change} more. How many ${item} does ${person} have now? Reply with only the number.` : `${person} has ${start} ${item} and gives away ${change}. How many ${item} remain? Reply with only the number.`, expected: String(add ? start + change : start - change), metadata: { operation: add ? "addition" : "subtraction", generatorSeed: seed } };
+  return { id: `arithmetic-${String(index + 1).padStart(2, "0")}`, kind: "single", prompt: add ? `${person} has ${start} ${item} and gets ${change} more. How many ${item} does ${person} have now? Reply with only the number.` : `${person} has ${start} ${item} and gives away ${change}. How many ${item} remain? Reply with only the number.`, expected: String(add ? start + change : start - change), metadata: { operation: add ? "addition" : "subtraction", generatorSeed: seed } };
 });
 await mkdir(new URL("../data/", import.meta.url), { recursive: true });
 await writeFile(new URL("../data/tasks.jsonl", import.meta.url), `${tasks.map((task) => JSON.stringify(task)).join("\n")}\n`);
