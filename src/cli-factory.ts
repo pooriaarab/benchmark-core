@@ -7,7 +7,7 @@ import { startMcp } from "./mcp.js";
 import { renderCard, renderMarkdown } from "./render.js";
 import { bootstrapCI } from "./random.js";
 import { run } from "./run.js";
-import type { Answer, Benchmark, ModelAdapter, RunReport, RunRow, Task } from "./types.js";
+import type { Benchmark, ModelAdapter, RunReport, RunRow, Task } from "./types.js";
 
 class UsageError extends Error {}
 function isUsageError(error: unknown): boolean {
@@ -20,8 +20,8 @@ function report(value: unknown): RunReport {
   if (value === null || typeof value !== "object" || Array.isArray(value) || !Array.isArray(Reflect.get(value, "rows"))) throw new UsageError("File is not a run report.");
   return value as RunReport;
 }
-function adapter(provider: string, model: string): ModelAdapter {
-  if (provider === "mock") return mockAdapter();
+function adapter<T extends Task>(provider: string, model: string, benchmark: Benchmark<T>, seed: number): ModelAdapter {
+  if (provider === "mock") return mockAdapter({ seed, ...(benchmark.definition.mockPolicies ? { policies: benchmark.definition.mockPolicies } : {}) });
   if (provider === "openrouter") return openrouterAdapter({ model });
   if (provider === "openai") return openaiCompatAdapter({ model });
   throw new UsageError("--provider must be openrouter, openai, or mock.");
@@ -40,14 +40,15 @@ export function createCli<T extends Task>(benchmark: Benchmark<T>, options: { bi
         console.log(jsonOutput ? JSON.stringify({ task }) : `${task.id}\n\n${task.prompt}`); return 0;
       }
       if (command === "run") {
-        const parsed = parseArgs({ args: clean, options: { model: { type: "string" }, provider: { type: "string" }, concurrency: { type: "string" }, timeout: { type: "string" }, retries: { type: "string" }, seed: { type: "string" } }, strict: true });
+        const parsed = parseArgs({ args: clean, options: { model: { type: "string" }, provider: { type: "string" }, concurrency: { type: "string" }, timeout: { type: "string" }, retries: { type: "string" }, seed: { type: "string" }, "max-turns": { type: "string" }, "max-tool-calls": { type: "string" }, budget: { type: "string" } }, strict: true });
         const model = parsed.values.model; const provider = parsed.values.provider; if (!model || !provider) throw new UsageError("run needs --model and --provider.");
-        const result = await run(benchmark, adapter(provider, model), { ...(parsed.values.concurrency ? { concurrency: Number(parsed.values.concurrency) } : {}), ...(parsed.values.timeout ? { timeoutMs: Number(parsed.values.timeout) } : {}), ...(parsed.values.retries ? { retries: Number(parsed.values.retries) } : {}), ...(parsed.values.seed ? { seed: Number(parsed.values.seed) } : {}) });
+        const seed = Number(parsed.values.seed ?? 1);
+        const result = await run(benchmark, adapter(provider, model, benchmark, seed), { ...(parsed.values.concurrency ? { concurrency: Number(parsed.values.concurrency) } : {}), ...(parsed.values.timeout ? { timeoutMs: Number(parsed.values.timeout) } : {}), ...(parsed.values.retries ? { retries: Number(parsed.values.retries) } : {}), seed, ...(parsed.values["max-turns"] ? { maxTurns: Number(parsed.values["max-turns"]) } : {}), ...(parsed.values["max-tool-calls"] ? { maxToolCalls: Number(parsed.values["max-tool-calls"]) } : {}), ...(parsed.values.budget ? { budgetUsd: Number(parsed.values.budget) } : {}) });
         console.log(jsonOutput ? JSON.stringify(result) : renderMarkdown(result)); return result.rows.some((row) => row.error) ? 2 : 0;
       }
       if (command === "score") {
         const file = clean[0]; if (!file) throw new UsageError("score needs a results JSON file."); const original = report(JSON.parse(await readFile(file, "utf8")) as unknown); const rows: RunRow[] = [];
-        for (const row of original.rows) { const task = await benchmark.getTask(row.taskId); if (!task || row.answer === undefined) throw new UsageError(`Cannot score task ${row.taskId}.`); const grade = await benchmark.score(task, row.answer as Answer); rows.push({ ...row, score: grade.score, reason: grade.reason }); }
+        for (const row of original.rows) { const task = await benchmark.getTask(row.taskId); if (!task || row.submission === undefined) throw new UsageError(`Cannot score task ${row.taskId}.`); const grade = await benchmark.score(task, row.submission, { seed: original.seed }); rows.push({ ...row, score: grade.score, reason: grade.reason }); }
         const scores = rows.map((row) => row.score); const rescored = { ...original, rows, mean: scores.reduce((a, b) => a + b, 0) / scores.length, confidenceInterval95: bootstrapCI(scores, original.seed) };
         console.log(jsonOutput ? JSON.stringify(rescored) : renderMarkdown(rescored)); return 0;
       }

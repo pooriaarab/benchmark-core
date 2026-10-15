@@ -3,12 +3,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { openrouterAdapter } from "./adapters.js";
 import { run } from "./run.js";
-import type { Answer, Benchmark, Task } from "./types.js";
+import type { Benchmark, Task, Trace } from "./types.js";
 
 const tools = [
   { name: "list_tasks", description: "List benchmark task ids and prompts.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
   { name: "get_task", description: "Get one benchmark task.", inputSchema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"], additionalProperties: false } },
-  { name: "score_answer", description: "Score an answer with the deterministic benchmark grader.", inputSchema: { type: "object", properties: { taskId: { type: "string" }, answer: {} }, required: ["taskId", "answer"], additionalProperties: false } },
+  { name: "score_answer", description: "Score a trace with the deterministic benchmark grader.", inputSchema: { type: "object", properties: { taskId: { type: "string" }, submission: { type: "object" }, seed: { type: "number" } }, required: ["taskId", "submission"], additionalProperties: false } },
   { name: "run_benchmark", description: "Run every task through an OpenRouter model.", inputSchema: { type: "object", properties: { model: { type: "string" } }, required: ["model"], additionalProperties: false } },
   { name: "get_provenance", description: "Get benchmark data provenance.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
 ] as const;
@@ -26,8 +26,8 @@ export function createMcpServer<T extends Task>(benchmark: Benchmark<T>): Server
         const task = await benchmark.getTask(input.taskId); return task ? content({ task }) : content({ error: "Task not found." }, true);
       }
       if (request.params.name === "score_answer") {
-        if (typeof input.taskId !== "string" || input.answer === undefined) return content({ error: "taskId and answer are required." }, true);
-        const task = await benchmark.getTask(input.taskId); return task ? content({ taskId: task.id, ...(await benchmark.score(task, input.answer as Answer)) }) : content({ error: "Task not found." }, true);
+        if (typeof input.taskId !== "string" || !input.submission || typeof input.submission !== "object" || Array.isArray(input.submission)) return content({ error: "taskId and submission are required." }, true);
+        const task = await benchmark.getTask(input.taskId); return task ? content({ taskId: task.id, ...(await benchmark.score(task, input.submission as Trace, typeof input.seed === "number" ? { seed: input.seed } : {})) }) : content({ error: "Task not found." }, true);
       }
       if (request.params.name === "run_benchmark") {
         if (typeof input.model !== "string") return content({ error: "model is required." }, true);
