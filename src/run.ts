@@ -3,9 +3,12 @@ import type { Benchmark, ModelAdapter, ModelResult, RunOptions, RunReport, RunRo
 
 async function timedGenerate(adapter: ModelAdapter, task: Task, attempt: number, timeoutMs: number): Promise<ModelResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(new Error(`Task timed out after ${timeoutMs}ms.`)), timeoutMs);
-  try { return await adapter.generate(task, { signal: controller.signal, attempt }); }
-  finally { clearTimeout(timeout); }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => { const error = new Error(`Task timed out after ${timeoutMs}ms.`); controller.abort(error); reject(error); }, timeoutMs);
+  });
+  try { return await Promise.race([adapter.generate(task, { signal: controller.signal, attempt }), expired]); }
+  finally { if (timeout !== undefined) clearTimeout(timeout); }
 }
 
 export async function run<T extends Task>(benchmark: Benchmark<T>, adapter: ModelAdapter, options: RunOptions = {}): Promise<RunReport> {

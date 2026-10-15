@@ -1,0 +1,12 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.pooriaarab/benchmark-core",
+  "description": "Typed engine for AI benchmarks with SDK, CLI, MCP, and HTTP API surfaces.",
+  "version": "0.1.0",
+  "repository": {"url": "https://github.com/pooriaarab/benchmark-core", "source": "github", "id": 1420260562},
+  "packages": [{
+    "registryType": "npm", "registryBaseUrl": "https://registry.npmjs.org", "identifier": "benchmark-core", "version": "0.1.0",
+    "transport": {"type": "stdio"}, "runtimeHint": "npx",
+    "packageArguments": [{"type": "positional", "valueHint": "subcommand", "value": "mcp"}]
+  }]
+}

@@ -1,5 +1,5 @@
 import type { Benchmark, IndexEntry, Task } from "./types.js";
-export async function indexEntry(benchmark: Benchmark): Promise<IndexEntry> {
+export async function indexEntry<T extends Task>(benchmark: Benchmark<T>): Promise<IndexEntry> {
   const definition = benchmark.definition; const tasks = await benchmark.listTasks();
   const date = definition.provenance.map((item) => item.retrievedAt).sort().at(-1) ?? new Date(0).toISOString();
   const entry: IndexEntry = {
@@ -14,7 +14,7 @@ export async function indexEntry(benchmark: Benchmark): Promise<IndexEntry> {
   if (definition.saturation !== undefined) entry.saturation = definition.saturation;
   return entry;
 }
-export function provenanceMarkdown(benchmark: Benchmark<Task>): string {
+export function provenanceMarkdown<T extends Task>(benchmark: Benchmark<T>): string {
   const lines = [`# ${benchmark.definition.name} provenance`, "", "This file is generated from the benchmark definition.", ""];
   for (const source of benchmark.definition.provenance) lines.push(`## ${source.name}`, "", `- Kind: \`${source.kind}\``, `- URL: ${source.url}`, `- Licence: \`${source.licence}\``, `- Retrieved: ${source.retrievedAt}`, `- How to get it: ${source.howToGet}`, `- Contamination notes: ${source.contaminationNotes}`, `- Refresh: ${source.refresh}`, "");
   return lines.join("\n");
