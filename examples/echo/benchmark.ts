@@ -10,7 +10,7 @@ async function loadTasks(): Promise<Task[]> {
 export const echoBenchmark = defineBenchmark({
   id: "benchmark-core", name: "Arithmetic word problems", tagline: "Small arithmetic, full benchmark stack.",
   tags: ["helpful", "science"], category: "reasoning", whatItMeasures: "Exact answers to short addition and subtraction word problems.",
-  version: "0.1.0", status: "alpha", loadTasks, grade: (task, submission) => exactMatch(task.expected ?? null, submission.answer ?? ""),
+  version: "0.1.0", status: "alpha", loadTasks, grade: (task, submission) => submission.answer === undefined ? { score: 0, reason: "Submission has no answer." } : exactMatch(task.expected ?? null, submission.answer),
   provenance: [{
     name: "Seeded arithmetic generator", kind: "synthetic", url: "https://github.com/pooriaarab/benchmark-core/blob/main/examples/echo/scripts/generate.mjs",
     licence: "MIT", howToGet: "Run `node examples/echo/scripts/generate.mjs` from the repository root.", retrievedAt: "2026-10-15T00:00:00.000Z",
