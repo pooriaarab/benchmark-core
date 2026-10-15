@@ -13,7 +13,7 @@ export async function runEpisode<T extends Task>(task: T, adapter: ModelAdapter,
   if (!Number.isInteger(options.maxTurns) || options.maxTurns < 1 || !Number.isInteger(options.maxToolCalls) || options.maxToolCalls < 0 || options.budgetUsd < 0) throw new Error("Invalid episode options.");
   const seed = options.seed ?? 1; const start = await environment.reset(task, seed);
   const transcript: ChatMessage[] = [{ role: "system", content: start.system }, { role: "user", content: task.prompt }];
-  const toolLog: ToolLogEntry[] = []; const usage: ModelUsage = {}; let costUsd = 0; let turns = 0; let finalAnswer: string | undefined; let aborted: Episode["aborted"];
+  const toolLog: ToolLogEntry[] = []; const usage: ModelUsage = {}; let costUsd = 0; let turns = 0; let finalAnswer: string | undefined; let finished = false; let aborted: Episode["aborted"];
   while (turns < options.maxTurns) {
     options.signal?.throwIfAborted(); turns++;
     const result = await adapter.chat({ messages: [...transcript], tools: start.tools }, { signal: options.signal ?? new AbortController().signal, attempt: 1, task, seed, turn: turns });
@@ -22,7 +22,7 @@ export async function runEpisode<T extends Task>(task: T, adapter: ModelAdapter,
     if (costUsd > options.budgetUsd) {
       aborted = "budget"; for (const call of result.toolCalls) transcript.push({ role: "tool", toolCallId: call.id, content: JSON.stringify({ error: "episode_ended" }) }); break;
     }
-    if (result.toolCalls.length === 0) { finalAnswer = result.content; break; }
+    if (result.toolCalls.length === 0) { finalAnswer = result.content; finished = true; break; }
     let ended = false;
     for (let index = 0; index < result.toolCalls.length; index++) {
       const call = result.toolCalls[index]!;
@@ -31,9 +31,9 @@ export async function runEpisode<T extends Task>(task: T, adapter: ModelAdapter,
       toolLog.push(entry); transcript.push({ role: "tool", toolCallId: call.id, content: JSON.stringify(outcome.error ? { error: outcome.error } : outcome.result) ?? "null" });
       if (environment.done()) { for (const skipped of result.toolCalls.slice(index + 1)) transcript.push({ role: "tool", toolCallId: skipped.id, content: JSON.stringify({ error: "episode_ended" }) }); ended = true; break; }
     }
-    if (aborted || ended) break;
+    if (aborted || ended) { if (!aborted) finished = true; break; }
   }
-  if (!finalAnswer && !aborted && turns >= options.maxTurns) aborted = "max_turns";
+  if (!finished && finalAnswer === undefined && !aborted && turns >= options.maxTurns) aborted = "max_turns";
   if (costUsd || usage.costUsd !== undefined) usage.costUsd = costUsd;
   return { transcript, toolLog, ...(finalAnswer !== undefined ? { finalAnswer } : {}), finalState: environment.state(), usage, costUsd, turns, ...(aborted ? { aborted } : {}) };
 }
