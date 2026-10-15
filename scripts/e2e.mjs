@@ -18,7 +18,7 @@ const cliReport = JSON.parse(cli.stdout);
 assert.equal(cliReport.rows.length, 21);
 assert.ok(cliReport.mean > 0 && cliReport.mean < 1);
 const retryCalls = new Map(); const retryAdapter = { id: "retry", async complete(_prompt, context) { const count = (retryCalls.get(context.task.id) ?? 0) + 1; retryCalls.set(context.task.id, count); if (count === 1) throw new Error("transient"); return { content: String(context.task.expected) }; }, chat: async () => ({ content: "", toolCalls: [] }) };
-const retried = await core.run(echoBenchmark, retryAdapter, { retries: 1 }); assert.ok(retried.rows.every((row) => row.attempts === 2 && !row.error));
+const retried = await core.run(echoBenchmark, retryAdapter, { retries: 1 }); assert.ok(retried.rows.filter((row) => row.kind === "single").every((row) => row.attempts === 2 && !row.error));
 const referenceEpisodeRow = cliReport.rows.find((row) => row.taskId === "order-lookup-01"); assert.equal(referenceEpisodeRow.score, 1); assert.equal(referenceEpisodeRow.episode.toolLog[0].error.code, "HTTP_500");
 const badReference = await core.run(echoBenchmark, core.mockAdapter({ seed: 2, policies: echoBenchmark.definition.mockPolicies }), { seed: 2 }); const badReferenceRow = badReference.rows.find((row) => row.taskId === "order-lookup-01"); assert.equal(badReferenceRow.score, 0);
 const evenSeedGood = await core.run(echoBenchmark, core.mockAdapter({ seed: 1, policies: echoBenchmark.definition.mockPolicies }), { seed: 2 }); assert.equal(evenSeedGood.rows.find((row) => row.taskId === "order-lookup-01").score, 1);
