@@ -7,9 +7,14 @@ import { startMcp } from "./mcp.js";
 import { renderCard, renderMarkdown } from "./render.js";
 import { bootstrapCI } from "./random.js";
 import { run } from "./run.js";
-import type { Answer, Benchmark, ModelAdapter, RunReport, RunRow } from "./types.js";
+import type { Answer, Benchmark, ModelAdapter, RunReport, RunRow, Task } from "./types.js";
 
 class UsageError extends Error {}
+function isUsageError(error: unknown): boolean {
+  if (error instanceof UsageError) return true;
+  const code = error !== null && typeof error === "object" ? Reflect.get(error, "code") : undefined;
+  return typeof code === "string" && code.startsWith("ERR_PARSE_ARGS");
+}
 const usage = (bin: string) => `Usage: ${bin} <list|show|run|score|card|provenance|index-entry|serve|mcp> [options]`;
 function report(value: unknown): RunReport {
   if (value === null || typeof value !== "object" || Array.isArray(value) || !Array.isArray(Reflect.get(value, "rows"))) throw new UsageError("File is not a run report.");
@@ -21,7 +26,7 @@ function adapter(provider: string, model: string): ModelAdapter {
   if (provider === "openai") return openaiCompatAdapter({ model });
   throw new UsageError("--provider must be openrouter, openai, or mock.");
 }
-export function createCli(benchmark: Benchmark, options: { bin: string }) {
+export function createCli<T extends Task>(benchmark: Benchmark<T>, options: { bin: string }) {
   return { async main(argv: string[]): Promise<number> {
     const command = argv[0]; const rest = argv.slice(1); const jsonOutput = rest.includes("--json");
     const clean = rest.filter((arg) => arg !== "--json");
@@ -55,6 +60,6 @@ export function createCli(benchmark: Benchmark, options: { bin: string }) {
       if (command === "serve") { const port = Number(clean[0] ?? process.env.PORT ?? 3000); await serve(createHandler(benchmark), { port }); console.log(jsonOutput ? JSON.stringify({ listening: port }) : `Listening on http://0.0.0.0:${port}`); return 0; }
       if (command === "mcp") { await startMcp(benchmark); return 0; }
       throw new UsageError(`Unknown command: ${command}`);
-    } catch (caught) { console.error(caught instanceof Error ? caught.message : String(caught)); if (caught instanceof UsageError) console.error(usage(options.bin)); return caught instanceof UsageError ? 1 : 2; }
+    } catch (caught) { const invalidUsage = isUsageError(caught); console.error(caught instanceof Error ? caught.message : String(caught)); if (invalidUsage) console.error(usage(options.bin)); return invalidUsage ? 1 : 2; }
   } };
 }
