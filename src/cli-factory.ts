@@ -52,7 +52,12 @@ export function createCli(benchmark: Benchmark, options: { bin: string }) {
       }
       if (command === "provenance") { const value = provenanceMarkdown(benchmark); console.log(jsonOutput ? JSON.stringify({ provenance: benchmark.definition.provenance }) : value); return 0; }
       if (command === "index-entry") { console.log(JSON.stringify(await indexEntry(benchmark), null, jsonOutput ? 0 : 2)); return 0; }
-      if (command === "serve") { const port = Number(clean[0] ?? process.env.PORT ?? 3000); await serve(createHandler(benchmark), { port }); console.log(jsonOutput ? JSON.stringify({ listening: port }) : `Listening on http://0.0.0.0:${port}`); return 0; }
+      if (command === "serve") {
+        const parsed = parseArgs({ args: clean, options: { host: { type: "string" } }, allowPositionals: true, strict: true });
+        if (parsed.positionals.length > 1) throw new UsageError("serve accepts at most one port.");
+        const port = Number(parsed.positionals[0] ?? process.env.PORT ?? 3000); const hostname = parsed.values.host ?? "127.0.0.1";
+        await serve(createHandler(benchmark), { port, hostname }); console.log(jsonOutput ? JSON.stringify({ listening: port, host: hostname }) : `Listening on http://${hostname}:${port}`); return 0;
+      }
       if (command === "mcp") { await startMcp(benchmark); return 0; }
       throw new UsageError(`Unknown command: ${command}`);
     } catch (caught) { console.error(caught instanceof Error ? caught.message : String(caught)); if (caught instanceof UsageError) console.error(usage(options.bin)); return caught instanceof UsageError ? 1 : 2; }
