@@ -1,5 +1,6 @@
 export { defineBenchmark } from "./benchmark.js";
 export { run } from "./run.js";
+export { runEpisode, replay } from "./episode.js";
 export { mockAdapter, openaiCompatAdapter, openrouterAdapter } from "./adapters.js";
 export { exactMatch, regexMatch, jsonSchemaMatch, numericWithin, judgeWithLLM, DEFAULT_JUDGE_PROMPT } from "./graders.js";
 export type { JsonSchema } from "./graders.js";

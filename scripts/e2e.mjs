@@ -27,7 +27,7 @@ try {
   const listed = await get("/v1/tasks"); assert.equal(listed.response.status, 200); assert.equal(listed.value.tasks.length, 20);
   const taskId = listed.value.tasks[0].id;
   const shown = await get(`/v1/tasks/${taskId}`); assert.equal(shown.response.status, 200); assert.equal(shown.value.task.id, taskId);
-  const scoreResponse = await fetch(`${base}/v1/score`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, answer: listed.value.tasks[0].expected }) });
+  const scoreResponse = await fetch(`${base}/v1/score`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, submission: { answer: listed.value.tasks[0].expected } }) });
   routes["POST /v1/score"] = scoreResponse.status; assert.equal(scoreResponse.status, 200); assert.equal((await scoreResponse.json()).score, 1);
   const provenance = await get("/v1/provenance"); assert.equal(provenance.response.status, 200); assert.equal(provenance.value.provenance.length, 1);
   const entry = await get("/v1/index-entry"); assert.equal(entry.response.status, 200); assert.equal(entry.value.task_count, 20);
@@ -42,7 +42,7 @@ try {
   assert.deepEqual(toolNames, ["get_provenance", "get_task", "list_tasks", "run_benchmark", "score_answer"]);
   const first = (await echoBenchmark.listTasks())[0];
   const calls = [
-    ["list_tasks", {}], ["get_task", { taskId: first.id }], ["score_answer", { taskId: first.id, answer: first.expected }],
+    ["list_tasks", {}], ["get_task", { taskId: first.id }], ["score_answer", { taskId: first.id, submission: { answer: first.expected } }],
     ["get_provenance", {}], ["run_benchmark", { model: "openai/gpt-4.1-mini" }],
   ];
   for (const [name, args] of calls) { const result = await client.callTool({ name, arguments: args }); if (name === "run_benchmark") assert.equal(result.isError, true); else assert.notEqual(result.isError, true); }
