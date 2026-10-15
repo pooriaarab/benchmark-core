@@ -19,15 +19,19 @@ export async function runEpisode<T extends Task>(task: T, adapter: ModelAdapter,
     const result = await adapter.chat({ messages: [...transcript], tools: start.tools }, { signal: options.signal ?? new AbortController().signal, attempt: 1, task, seed, turn: turns });
     addUsage(usage, result.usage); costUsd += result.costUsd ?? result.usage?.costUsd ?? 0;
     transcript.push({ role: "assistant", content: result.content, ...(result.toolCalls.length ? { toolCalls: result.toolCalls } : {}) });
-    if (costUsd > options.budgetUsd) { aborted = "budget"; break; }
+    if (costUsd > options.budgetUsd) {
+      aborted = "budget"; for (const call of result.toolCalls) transcript.push({ role: "tool", toolCallId: call.id, content: JSON.stringify({ error: "episode_ended" }) }); break;
+    }
     if (result.toolCalls.length === 0) { finalAnswer = result.content; break; }
-    for (const call of result.toolCalls) {
-      if (toolLog.length >= options.maxToolCalls) { aborted = "max_tool_calls"; break; }
+    let ended = false;
+    for (let index = 0; index < result.toolCalls.length; index++) {
+      const call = result.toolCalls[index]!;
+      if (toolLog.length >= options.maxToolCalls) { aborted = "max_tool_calls"; for (const skipped of result.toolCalls.slice(index)) transcript.push({ role: "tool", toolCallId: skipped.id, content: JSON.stringify({ error: "episode_ended" }) }); ended = true; break; }
       const outcome = await environment.callTool(call.name, call.args); const entry: ToolLogEntry = { name: call.name, args: call.args, result: outcome.result, ...(outcome.error ? { error: outcome.error } : {}) };
       toolLog.push(entry); transcript.push({ role: "tool", toolCallId: call.id, content: JSON.stringify(outcome.error ? { error: outcome.error } : outcome.result) ?? "null" });
-      if (environment.done()) break;
+      if (environment.done()) { for (const skipped of result.toolCalls.slice(index + 1)) transcript.push({ role: "tool", toolCallId: skipped.id, content: JSON.stringify({ error: "episode_ended" }) }); ended = true; break; }
     }
-    if (aborted) break;
+    if (aborted || ended) break;
   }
   if (!finalAnswer && !aborted && turns >= options.maxTurns) aborted = "max_turns";
   if (costUsd || usage.costUsd !== undefined) usage.costUsd = costUsd;
