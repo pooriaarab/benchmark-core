@@ -2,14 +2,17 @@ Closes #
 
 ## What
 
+One to three sentences.
+
 ## Why
 
 ## How I verified
 
-`npm run ci:local`
-
 ```text
-Paste the final 15 lines here.
+$ npm run ci:local
+<summary> -> local gate passed, ok
 ```
+
+Proof: n/a - no visible UI changed.
 
 Assisted-by: codex-box:model
