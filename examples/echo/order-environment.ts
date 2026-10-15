@@ -11,6 +11,7 @@ export class OrderLookupEnvironment implements Environment<Task> {
     ] };
   }
   callTool(name: string, args: Record<string, JsonValue>): ToolResult {
+    if (!args || typeof args !== "object" || Array.isArray(args)) return { result: null, error: { code: "INVALID_ARGUMENTS", message: "Tool arguments must be an object." } };
     if (name === "lookup_order") {
       this.#state.lookupAttempts++;
       if (args.orderId !== "ORD-104") return { result: null, error: { code: "NOT_FOUND", message: "Order not found." } };
