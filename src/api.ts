@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { indexEntry } from "./metadata.js";
-import type { Answer, Benchmark } from "./types.js";
+import type { Answer, Benchmark, Task } from "./types.js";
 
 const LIMIT = 1_048_576;
 function json(value: unknown, status = 200, cors = false): Response { return Response.json(value, { status, ...(cors ? { headers: { "access-control-allow-origin": "*" } } : {}) }); }
@@ -14,7 +14,7 @@ async function body(request: Request): Promise<unknown> {
   try { return JSON.parse(new TextDecoder().decode(bytes)) as unknown; } catch { throw new Error("INVALID_JSON"); }
 }
 function object(value: unknown): Record<string, unknown> | undefined { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined; }
-export function createHandler(benchmark: Benchmark) {
+export function createHandler<T extends Task>(benchmark: Benchmark<T>) {
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url); const cors = request.method === "GET";
     try {

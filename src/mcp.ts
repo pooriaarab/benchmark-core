@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { openrouterAdapter } from "./adapters.js";
 import { run } from "./run.js";
-import type { Answer, Benchmark } from "./types.js";
+import type { Answer, Benchmark, Task } from "./types.js";
 
 const tools = [
   { name: "list_tasks", description: "List benchmark task ids and prompts.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
@@ -14,7 +14,7 @@ const tools = [
 ] as const;
 const content = (value: unknown, isError = false) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }], ...(isError ? { isError: true as const } : {}) });
 function args(value: unknown): Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-export function createMcpServer(benchmark: Benchmark): Server {
+export function createMcpServer<T extends Task>(benchmark: Benchmark<T>): Server {
   const server = new Server({ name: benchmark.definition.id, version: benchmark.definition.version }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...tools] }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -40,4 +40,4 @@ export function createMcpServer(benchmark: Benchmark): Server {
   });
   return server;
 }
-export async function startMcp(benchmark: Benchmark): Promise<void> { await createMcpServer(benchmark).connect(new StdioServerTransport()); }
+export async function startMcp<T extends Task>(benchmark: Benchmark<T>): Promise<void> { await createMcpServer(benchmark).connect(new StdioServerTransport()); }

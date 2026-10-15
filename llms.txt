@@ -1,0 +1,20 @@
+# benchmark-core
+
+> Typed engine for AI benchmarks with SDK, CLI, MCP, and HTTP API surfaces.
+
+Package: https://www.npmjs.com/package/benchmark-core
+Repository: https://github.com/pooriaarab/benchmark-core
+Directory: https://aibenchmarkindex.com
+README: https://github.com/pooriaarab/benchmark-core#readme
+
+## Main exports
+
+defineBenchmark, run, score helpers, mockAdapter, openrouterAdapter, openaiCompatAdapter, createCli, createMcpServer, createHandler, serve, renderCard, renderMarkdown, indexEntry, provenanceMarkdown, mulberry32, bootstrapCI.
+
+## Environment
+
+OPENROUTER_API_KEY selects OpenRouter. OPENAI_BASE_URL and OPENAI_API_KEY select an OpenAI-compatible endpoint. The mock adapter needs no key or network.
+
+## Verification
+
+Run `npm run ci:local`. The end-to-end report is written to `artifacts/e2e-report.json`.
