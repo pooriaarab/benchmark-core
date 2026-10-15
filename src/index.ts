@@ -4,4 +4,9 @@ export { mockAdapter, openaiCompatAdapter, openrouterAdapter } from "./adapters.
 export { exactMatch, regexMatch, jsonSchemaMatch, numericWithin, judgeWithLLM, DEFAULT_JUDGE_PROMPT } from "./graders.js";
 export type { JsonSchema } from "./graders.js";
 export { mulberry32, bootstrapCI } from "./random.js";
+export { createCli } from "./cli-factory.js";
+export { createMcpServer, startMcp } from "./mcp.js";
+export { createHandler, serve } from "./api.js";
+export { renderCard, renderMarkdown } from "./render.js";
+export { indexEntry, provenanceMarkdown } from "./metadata.js";
 export type * from "./types.js";

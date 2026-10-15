@@ -1,2 +1,3 @@
 #!/usr/bin/env node
-export {};
+console.error("benchmark-core is a library. Run the CLI shipped by a benchmark package.");
+process.exitCode = 1;
