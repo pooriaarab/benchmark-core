@@ -15,10 +15,14 @@ const { echoBenchmark } = await import("../dist/example.js");
 
 const cli = await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--json"], { cwd: process.cwd(), maxBuffer: 2_000_000 });
 const cliReport = JSON.parse(cli.stdout);
-assert.equal(cliReport.rows.length, 20);
+assert.equal(cliReport.rows.length, 21);
 assert.ok(cliReport.mean > 0 && cliReport.mean < 1);
 const retryCalls = new Map(); const retryAdapter = { id: "retry", async complete(_prompt, context) { const count = (retryCalls.get(context.task.id) ?? 0) + 1; retryCalls.set(context.task.id, count); if (count === 1) throw new Error("transient"); return { content: String(context.task.expected) }; }, chat: async () => ({ content: "", toolCalls: [] }) };
-const retried = await core.run(echoBenchmark, retryAdapter, { retries: 1 }); assert.ok(retried.rows.every((row) => row.attempts === 2 && !row.error));
+const retried = await core.run(echoBenchmark, retryAdapter, { retries: 1 }); assert.ok(retried.rows.filter((row) => row.kind === "single").every((row) => row.attempts === 2 && !row.error));
+const referenceEpisodeRow = cliReport.rows.find((row) => row.taskId === "order-lookup-01"); assert.equal(referenceEpisodeRow.score, 1); assert.equal(referenceEpisodeRow.episode.toolLog[0].error.code, "HTTP_500");
+const badReference = await core.run(echoBenchmark, core.mockAdapter({ seed: 2, policies: echoBenchmark.definition.mockPolicies }), { seed: 2 }); const badReferenceRow = badReference.rows.find((row) => row.taskId === "order-lookup-01"); assert.equal(badReferenceRow.score, 0);
+const evenSeedGood = await core.run(echoBenchmark, core.mockAdapter({ seed: 1, policies: echoBenchmark.definition.mockPolicies }), { seed: 2 }); assert.equal(evenSeedGood.rows.find((row) => row.taskId === "order-lookup-01").score, 1);
+const referenceTask = await echoBenchmark.getTask("order-lookup-01"); await assert.rejects(() => core.replay(echoBenchmark.definition.environment(referenceTask), referenceTask, Array.from({ length: 1001 }, () => ({ name: "lookup_order", args: {}, result: null }))), /may not exceed 1000/);
 const ignoringAdapter = { id: "ignores-abort", complete: (_prompt, context) => new Promise((resolve) => setTimeout(() => resolve({ content: String(context.task.expected) }), 100)), chat: async () => ({ content: "", toolCalls: [] }) };
 const timeoutStart = performance.now(); const timeoutReport = await core.run(echoBenchmark, ignoringAdapter, { timeoutMs: 5 });
 assert.match(timeoutReport.rows[0].error, /timed out/); assert.ok(performance.now() - timeoutStart < 500);
@@ -59,13 +63,15 @@ try {
   let health; for (let attempt = 0; attempt < 100; attempt++) { try { health = await get("/health"); break; } catch { await new Promise((resolve) => setTimeout(resolve, 20)); } }
   assert.ok(health);
   health = await get("/health"); assert.equal(health.response.status, 200); assert.equal(health.value.ok, true);
-  const listed = await get("/v1/tasks"); assert.equal(listed.response.status, 200); assert.equal(listed.value.tasks.length, 20);
-  const taskId = listed.value.tasks[0].id;
+  const listed = await get("/v1/tasks"); assert.equal(listed.response.status, 200); assert.equal(listed.value.tasks.length, 21);
+  const taskId = "order-lookup-01";
   const shown = await get(`/v1/tasks/${taskId}`); assert.equal(shown.response.status, 200); assert.equal(shown.value.task.id, taskId);
-  const scoreResponse = await fetch(`${base}/v1/score`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, submission: { answer: listed.value.tasks[0].expected } }) });
+  const scoreResponse = await fetch(`${base}/v1/score`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, submission: referenceEpisodeRow.submission }) });
   routes["POST /v1/score"] = scoreResponse.status; assert.equal(scoreResponse.status, 200); assert.equal((await scoreResponse.json()).score, 1);
+  const malformed = await fetch(`${base}/v1/score`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, submission: { toolLog: [{ name: "lookup_order", result: null }] } }) }); assert.equal(malformed.status, 200); assert.equal((await malformed.json()).score, 0);
+  const oversized = await fetch(`${base}/v1/score`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, submission: { toolLog: Array.from({ length: 1001 }, () => ({ name: "lookup_order", args: {}, result: null })) } }) }); routes["POST /v1/score over limit"] = oversized.status; assert.equal(oversized.status, 400); assert.equal((await oversized.json()).error.code, "TOOL_LOG_LIMIT");
   const provenance = await get("/v1/provenance"); assert.equal(provenance.response.status, 200); assert.equal(provenance.value.provenance.length, 1);
-  const entry = await get("/v1/index-entry"); assert.equal(entry.response.status, 200); assert.equal(entry.value.task_count, 20);
+  const entry = await get("/v1/index-entry"); assert.equal(entry.response.status, 200); assert.equal(entry.value.task_count, 21);
 } finally { if (server.exitCode === null) { server.kill("SIGTERM"); await once(server, "exit"); } }
 
 const transport = new StdioClientTransport({ command: process.execPath, args: ["dist/cli.js", "mcp"], cwd: process.cwd(), stderr: "pipe" });
@@ -75,9 +81,8 @@ let toolNames;
 try {
   const available = await client.listTools(); toolNames = available.tools.map((tool) => tool.name).sort();
   assert.deepEqual(toolNames, ["get_provenance", "get_task", "list_tasks", "run_benchmark", "score_answer"]);
-  const first = (await echoBenchmark.listTasks())[0];
   const calls = [
-    ["list_tasks", {}], ["get_task", { taskId: first.id }], ["score_answer", { taskId: first.id, submission: { answer: first.expected } }],
+    ["list_tasks", {}], ["get_task", { taskId: "order-lookup-01" }], ["score_answer", { taskId: "order-lookup-01", submission: referenceEpisodeRow.submission }],
     ["get_provenance", {}], ["run_benchmark", { model: "openai/gpt-4.1-mini" }],
   ];
   for (const [name, args] of calls) { const result = await client.callTool({ name, arguments: args }); if (name === "run_benchmark") assert.equal(result.isError, true); else assert.notEqual(result.isError, true); }
@@ -90,4 +95,4 @@ const generatedProvenance = core.provenanceMarkdown(echoBenchmark);
 assert.equal(generatedProvenance, await readFile("examples/echo/data/PROVENANCE.md", "utf8"));
 const artifact = { task_count: cliReport.rows.length, scores: cliReport.rows.map((row) => row.score), route_status_codes: routes, tool_names: toolNames };
 await mkdir("artifacts", { recursive: true }); await writeFile("artifacts/e2e-report.json", `${JSON.stringify(artifact, null, 2)}\n`);
-console.log(`e2e: ${artifact.task_count} tasks, episode policies/replay/3 aborts/chat parse, CLI serve ${Object.keys(routes).length} routes, MCP ${toolNames.length} tools -> all surfaces passed, ok`);
+console.log(`e2e: ${artifact.task_count} tasks, good/bad policies, replay cap, malformed trace, 3 aborts/chat parse, CLI ${Object.keys(routes).length} routes, MCP ${toolNames.length} tools -> all surfaces passed, ok`);

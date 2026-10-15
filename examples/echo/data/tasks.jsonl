@@ -18,3 +18,4 @@
 {"id":"arithmetic-18","kind":"single","prompt":"Harper has 9 tickets and gives away 5. How many tickets remain? Reply with only the number.","expected":"4","metadata":{"operation":"subtraction","generatorSeed":20261015}}
 {"id":"arithmetic-19","kind":"single","prompt":"Jun has 21 tickets and gets 8 more. How many tickets does Jun have now? Reply with only the number.","expected":"29","metadata":{"operation":"addition","generatorSeed":20261015}}
 {"id":"arithmetic-20","kind":"single","prompt":"Marta has 24 tickets and gets 4 more. How many tickets does Marta have now? Reply with only the number.","expected":"28","metadata":{"operation":"addition","generatorSeed":20261015}}
+{"id":"order-lookup-01","kind":"episode","prompt":"Look up order ORD-104. Retry one transient failure, then refund the wrong item only when it is within the $50 policy limit.","metadata":{"orderId":"ORD-104","policyLimitUsd":50,"seed":1}}

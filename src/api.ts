@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { indexEntry } from "./metadata.js";
+import { MAX_TOOL_LOG_ENTRIES } from "./episode.js";
 import type { Benchmark, Task, Trace } from "./types.js";
 
 const LIMIT = 1_048_576;
@@ -28,6 +29,7 @@ export function createHandler<T extends Task>(benchmark: Benchmark<T>) {
       if (request.method === "POST" && url.pathname === "/v1/score") {
         const payload = object(await body(request)); const taskId = payload?.taskId; const submission = trace(payload?.submission);
         if (typeof taskId !== "string" || !submission) return error("INVALID_REQUEST", "taskId and submission are required.", 400);
+        if (submission.toolLog && submission.toolLog.length > MAX_TOOL_LOG_ENTRIES) return error("TOOL_LOG_LIMIT", `toolLog may not exceed ${MAX_TOOL_LOG_ENTRIES} entries.`, 400);
         const task = await benchmark.getTask(taskId); if (!task) return error("NOT_FOUND", "Task not found.", 404);
         return json({ taskId, ...(await benchmark.score(task, submission, typeof payload?.seed === "number" ? { seed: payload.seed } : {})) });
       }

@@ -9,6 +9,7 @@ const tasks = Array.from({ length: 20 }, (_, index) => {
   const person = people[index % people.length]; const item = items[Math.floor(index / people.length)];
   return { id: `arithmetic-${String(index + 1).padStart(2, "0")}`, kind: "single", prompt: add ? `${person} has ${start} ${item} and gets ${change} more. How many ${item} does ${person} have now? Reply with only the number.` : `${person} has ${start} ${item} and gives away ${change}. How many ${item} remain? Reply with only the number.`, expected: String(add ? start + change : start - change), metadata: { operation: add ? "addition" : "subtraction", generatorSeed: seed } };
 });
+tasks.push({ id: "order-lookup-01", kind: "episode", prompt: "Look up order ORD-104. Retry one transient failure, then refund the wrong item only when it is within the $50 policy limit.", metadata: { orderId: "ORD-104", policyLimitUsd: 50, seed: 1 } });
 await mkdir(new URL("../data/", import.meta.url), { recursive: true });
 await writeFile(new URL("../data/tasks.jsonl", import.meta.url), `${tasks.map((task) => JSON.stringify(task)).join("\n")}\n`);
-console.log(`generated ${tasks.length} tasks with seed ${seed}`);
+console.log(`generated 20 arithmetic tasks and 1 episode task with seed ${seed}`);
