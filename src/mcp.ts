@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { MAX_TOOL_LOG_ENTRIES } from "./episode.js";
 import { openrouterAdapter } from "./adapters.js";
 import { run } from "./run.js";
 import type { Benchmark, Task, Trace } from "./types.js";
@@ -27,6 +28,7 @@ export function createMcpServer<T extends Task>(benchmark: Benchmark<T>): Server
       }
       if (request.params.name === "score_answer") {
         if (typeof input.taskId !== "string" || !input.submission || typeof input.submission !== "object" || Array.isArray(input.submission)) return content({ error: "taskId and submission are required." }, true);
+        const submittedLog = Reflect.get(input.submission, "toolLog"); if (Array.isArray(submittedLog) && submittedLog.length > MAX_TOOL_LOG_ENTRIES) return content({ error: `toolLog may not exceed ${MAX_TOOL_LOG_ENTRIES} entries.` }, true);
         const task = await benchmark.getTask(input.taskId); return task ? content({ taskId: task.id, ...(await benchmark.score(task, input.submission as Trace, typeof input.seed === "number" ? { seed: input.seed } : {})) }) : content({ error: "Task not found." }, true);
       }
       if (request.params.name === "run_benchmark") {
