@@ -1,0 +1,39 @@
+# Publish to npm on every push to the `release` branch.
+# Branch model: `main` = staging, `release` = production. To ship: bump
+# "version" in package.json on main, get it green, then merge main -> release.
+# Idempotent: an already-published version skips rather than fails.
+# Required secret: NPM_TOKEN (automation token with publish access).
+name: Publish
+
+on:
+  push:
+    branches: ["release"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - name: Publish to npm
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PWD_NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$PWD_NAME@$VERSION already published; skipping."
+          else
+            npm publish --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PWD_NAME: ${{ github.event.repository.name }}
