@@ -6,14 +6,14 @@
 
 benchmark-core is an open-source TypeScript engine for reproducible AI model benchmarks. One definition produces an SDK, command-line interface (CLI), Model Context Protocol (MCP) server, and HTTP API.
 
-It measures whatever your tasks and deterministic grader define. The included example measures exact answers to 20 generated arithmetic word problems.
+It measures whatever your tasks and deterministic grader define. The included example measures 20 arithmetic answers and one tool-use episode with a transient order-service fault.
 
 ```bash
 npx benchmark-core run --model offline --provider mock --json
 ```
 
 ```json
-{"model":"mock:1","mean":0.5,"confidenceInterval95":{"low":0.3,"high":0.7},"totals":{"tasks":20,"passed":10,"failed":0}}
+{"model":"mock:1","mean":0.5238,"confidenceInterval95":{"low":0.3333,"high":0.7143},"totals":{"tasks":21,"passed":11,"failed":0}}
 ```
 
 The example data comes from a [committed seeded generator](https://github.com/pooriaarab/benchmark-core/blob/main/examples/echo/scripts/generate.mjs). Seed `20261015` reproduces every public task.
@@ -42,8 +42,8 @@ const benchmark = defineBenchmark({
   whatItMeasures: "Exact recall of a named color.",
   version: "0.1.0",
   status: "alpha",
-  tasks: [{ id: "sky", prompt: "Name the sky color.", expected: "blue" }],
-  grade: (task, answer) => exactMatch(task.expected, answer),
+  tasks: [{ id: "sky", kind: "single", prompt: "Name the sky color.", expected: "blue" }],
+  grade: (task, submission) => exactMatch(task.expected, submission.answer ?? ""),
   provenance: [{
     name: "Maintainer-written task",
     kind: "human-written",
@@ -61,12 +61,12 @@ const report = await run(benchmark, mockAdapter(), { concurrency: 2, seed: 7 });
 console.log(report.mean);
 ```
 
-`tasks` can be replaced by an asynchronous `loadTasks()` function. Task IDs must be unique.
+`tasks` can be replaced by an asynchronous `loadTasks()` function. Task IDs must be unique, and each task declares `kind: "single" | "episode"`.
 
 ## How it works
 
 ```text
-defineBenchmark({ tasks, grade, provenance })
+defineBenchmark({ tasks, grade, environment, provenance })
                   │
         ┌─────────┼──────────┐
         │         │          │
@@ -77,7 +77,7 @@ defineBenchmark({ tasks, grade, provenance })
              RunReport JSON
 ```
 
-The runner preserves task order while it uses bounded concurrency. Each row records attempts, latency, score, reason, usage, and errors.
+The runner preserves task order while it uses bounded concurrency. Each row records attempts, latency, score, reason, usage, and errors. Episode rows also contain the transcript, tool log, final state, and abort reason.
 
 The 95% confidence interval uses 2,000 seeded bootstrap resamples. Identical scores and seeds produce identical intervals.
 
@@ -89,7 +89,7 @@ A benchmark package calls `createCli(benchmark, { bin })`. The returned `main(ar
 
 - `list`
 - `show <task>`
-- `run --model <id> --provider <openrouter|openai|mock>`
+- `run --model <id> --provider <openrouter|openai|mock>` with optional episode limits
 - `score <results.json>`
 - `card <report.json> [output.svg]`
 - `provenance`
@@ -114,7 +114,7 @@ Every command accepts `--json`. Exit code 0 means success, 1 means invalid usage
 | GET | `/health` | Package identity and health |
 | GET | `/v1/tasks` | All tasks |
 | GET | `/v1/tasks/:id` | One task |
-| POST | `/v1/score` | Deterministic score for `{ taskId, answer }` |
+| POST | `/v1/score` | Deterministic score for `{ taskId, submission }` |
 | GET | `/v1/provenance` | Data sources |
 | GET | `/v1/index-entry` | Directory entry |
 
@@ -126,13 +126,43 @@ The server listens on `127.0.0.1` by default. Use `serve --host 0.0.0.0` only wh
 
 `POST /v1/score` has no built-in authentication. Put authorization and rate limits in front of public deployments. An opt-in LLM-judged grader makes a paid model call for every score request.
 
+
+## Tool-use episodes
+
+An episode task runs against a seeded, in-process `Environment`. The environment exposes JSON-schema tool definitions and four deterministic methods:
+
+```ts
+interface Environment {
+  reset(task, seed): { system: string; tools: ToolSpec[] };
+  callTool(name, args): { result: unknown; error?: { code: string; message: string } };
+  state(): unknown;
+  done(): boolean;
+}
+```
+
+`runEpisode(task, adapter, environment, options)` enforces turn, tool-call, and dollar limits. A budget breach returns an episode with `aborted: "budget"`; the main runner still sends its trace to the grader.
+
+The universal submission is a `Trace`:
+
+```ts
+{
+  answer?: string;
+  toolLog?: ToolLogEntry[];
+  finalState?: unknown;
+}
+```
+
+`replay(environment, task, toolLog, seed)` resets the simulator and repeats only recorded calls. Episode graders can compute a result without a model or network call.
+
+The reference `OrderLookupEnvironment` injects an HTTP 500 on its first seeded lookup. Its good mock policy retries, loads a $35 order, and applies the $50 refund limit.
+
 ## Model adapters
 
-- `mockAdapter({ seed })` works offline. It returns a deterministic mix of expected and wrong answers.
+- `mockAdapter({ seed, policies })` works offline. It returns a deterministic mix of expected and wrong answers, then follows benchmark-supplied `good(task)` or `bad(task)` episode scripts.
 - `openrouterAdapter({ model })` reads `OPENROUTER_API_KEY`.
 - `openaiCompatAdapter({ baseUrl, model })` reads `OPENAI_BASE_URL` and `OPENAI_API_KEY` when options omit them.
 
-Adapters return an answer plus optional token and cost usage. API-reported usage flows into each row and report total.
+Adapters implement `complete(prompt, context)` for single tasks and `chat({ messages, tools }, context)` for episodes. API-reported usage and cost flow into each row and report total.
 
 ## Graders
 
@@ -165,12 +195,15 @@ Commit the rendered provenance file beside `tasks.jsonl`. The end-to-end test co
 
 The package exports these types:
 
-- `Task`, `Answer`, `TaskScore`, and `GradeContext`
+- `Task`, `Trace`, `TaskScore`, and `GradeContext`
+- `ToolSpec`, `ToolCall`, `ToolLogEntry`, `ToolResult`, and `ToolError`
+- `Environment`, `EnvironmentStart`, `Episode`, and `EpisodeOptions`
 - `BenchmarkDefinition`, `Benchmark`, `BenchmarkTag`, and `BenchmarkStatus`
-- `ModelAdapter`, `ModelAdapterContext`, `ModelResult`, and `ModelUsage`
+- `ModelAdapter`, `ModelAdapterContext`, `CompletionResult`, `ChatRequest`, `ChatResult`, `ChatMessage`, and `ModelUsage`
+- `MockPolicies` and `ScriptedTurn`
 - `RunOptions`, `RunRow`, and `RunReport`
 - `Provenance`, `ProvenanceKind`, and `IndexEntry`
-- `JsonSchema`, `JsonValue`, and `JsonPrimitive`
+- `JsonSchema`, `JsonSchemaObject`, `JsonValue`, `JsonPrimitive`, and `Answer`
 
 ## Limits
 
@@ -180,7 +213,7 @@ A timeout stops waiting and aborts the provider signal. Provider work can contin
 
 The built-in schema grader implements the documented subset, not the full JSON Schema specification. Cost stays absent when a provider omits it.
 
-The public arithmetic tasks test the surfaces, not frontier model ability. Use a private or held-out split for serious comparisons.
+The public arithmetic and order tasks test the surfaces, not frontier model ability. Use a private or held-out split for serious comparisons.
 
 ## Development
 

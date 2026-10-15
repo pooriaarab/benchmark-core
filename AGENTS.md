@@ -24,3 +24,5 @@ Do not read provider keys from repository files. OpenRouter uses `OPENROUTER_API
 Open an issue first. Use branch `bmc-<issue>-<slug>` and title `[BMC-<issue>] Imperative subject`.
 
 Keep one concern under 500 counted lines. Run `npm run ci:local` before each push. Do not push the `release` branch or merge your own pull request.
+
+Episode environments must be deterministic for the task and seed. Grade submitted traces by replaying tool calls; never trust a submitted final state without replay.

@@ -1,10 +1,13 @@
 import type { ChatMessage, Environment, Episode, EpisodeOptions, ModelAdapter, ModelUsage, Task, ToolLogEntry } from "./types.js";
 
+export const MAX_TOOL_LOG_ENTRIES = 1000;
+
 function addUsage(total: ModelUsage, next: ModelUsage | undefined): void {
   if (!next) return;
   for (const key of ["inputTokens", "outputTokens", "totalTokens"] as const) if (next[key] !== undefined) total[key] = (total[key] ?? 0) + next[key]!;
 }
 export async function replay<T extends Task>(environment: Environment<T>, task: T, toolLog: readonly ToolLogEntry[], seed = 1): Promise<unknown> {
+  if (toolLog.length > MAX_TOOL_LOG_ENTRIES) throw new Error(`toolLog may not exceed ${MAX_TOOL_LOG_ENTRIES} entries.`);
   await environment.reset(task, seed);
   for (const entry of toolLog) await environment.callTool(entry.name, entry.args);
   return environment.state();
