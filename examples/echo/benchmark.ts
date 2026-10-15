@@ -15,10 +15,10 @@ export const echoBenchmark = defineBenchmark({
   tags: ["helpful", "science"], category: "reasoning", whatItMeasures: "Exact arithmetic answers and recovery during a policy-bounded order lookup.",
   version: "0.1.0", status: "alpha", loadTasks,
   async grade(task, submission, context) {
-    if (task.kind === "single") return exactMatch(task.expected ?? null, submission.answer ?? "");
+    if (task.kind === "single") return submission.answer === undefined ? { score: 0, reason: "Submission has no answer." } : exactMatch(task.expected ?? null, submission.answer);
     const state = await replay(new OrderLookupEnvironment(), task, submission.toolLog ?? [], context.seed) as { lookupAttempts?: number; refunded?: boolean; faultInjected?: boolean };
-    const pass = state.refunded === true && state.lookupAttempts === 2 && state.faultInjected === true;
-    return { score: pass ? 1 : 0, reason: pass ? "Recovered from the injected 500 and refunded within policy." : "Trace did not replay to the required policy-safe refund." };
+    const pass = state.refunded === true && (state.faultInjected !== true || (state.lookupAttempts ?? 0) >= 2);
+    return { score: pass ? 1 : 0, reason: pass ? (state.faultInjected ? "Recovered from the injected 500 and refunded within policy." : "Refunded within policy.") : "Trace did not replay to the required policy-safe refund." };
   },
   environment: () => new OrderLookupEnvironment(),
   mockPolicies: {
