@@ -23,9 +23,7 @@ jobs:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
-      - run: npm run build
-      - run: npm run typecheck
-      - run: npm test
+      - run: npm run ci:local
       - name: Publish to npm
         run: |
           VERSION=$(node -p "require('./package.json').version")
