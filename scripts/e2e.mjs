@@ -17,6 +17,8 @@ const cli = await execFile(process.execPath, ["dist/cli.js", "run", "--model", "
 const cliReport = JSON.parse(cli.stdout);
 assert.equal(cliReport.rows.length, 20);
 assert.ok(cliReport.mean > 0 && cliReport.mean < 1);
+const retryCalls = new Map(); const retryAdapter = { id: "retry", async complete(_prompt, context) { const count = (retryCalls.get(context.task.id) ?? 0) + 1; retryCalls.set(context.task.id, count); if (count === 1) throw new Error("transient"); return { content: String(context.task.expected) }; }, chat: async () => ({ content: "", toolCalls: [] }) };
+const retried = await core.run(echoBenchmark, retryAdapter, { retries: 1 }); assert.ok(retried.rows.every((row) => row.attempts === 2 && !row.error));
 const ignoringAdapter = { id: "ignores-abort", complete: (_prompt, context) => new Promise((resolve) => setTimeout(() => resolve({ content: String(context.task.expected) }), 100)), chat: async () => ({ content: "", toolCalls: [] }) };
 const timeoutStart = performance.now(); const timeoutReport = await core.run(echoBenchmark, ignoringAdapter, { timeoutMs: 5 });
 assert.match(timeoutReport.rows[0].error, /timed out/); assert.ok(performance.now() - timeoutStart < 500);
