@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { execFile as execFileCallback } from "node:child_process";
+import { execFile as execFileCallback, spawn } from "node:child_process";
+import { once } from "node:events";
+import { createServer as createNetServer } from "node:net";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -14,16 +16,20 @@ const cli = await execFile(process.execPath, ["dist/cli.js", "run", "--model", "
 const cliReport = JSON.parse(cli.stdout);
 assert.equal(cliReport.rows.length, 20);
 assert.ok(cliReport.mean > 0 && cliReport.mean < 1);
-
-const handler = core.createHandler(echoBenchmark);
-const server = await core.serve(handler, { port: 0, hostname: "127.0.0.1" });
-const address = server.address();
-assert.ok(address && typeof address === "object");
-const base = `http://127.0.0.1:${address.port}`;
+const ignoringAdapter = { id: "ignores-abort", generate: (task) => new Promise((resolve) => setTimeout(() => resolve({ answer: task.expected }), 100)) };
+const timeoutStart = performance.now(); const timeoutReport = await core.run(echoBenchmark, ignoringAdapter, { timeoutMs: 5 });
+assert.match(timeoutReport.rows[0].error, /timed out/); assert.ok(performance.now() - timeoutStart < 500);
+let invalidPort; try { await execFile(process.execPath, ["dist/cli.js", "serve", "abc"], { cwd: process.cwd() }); } catch (error) { invalidPort = error; }
+assert.equal(invalidPort?.code, 1); assert.match(invalidPort?.stderr, /serve port must be an integer/);
+const probe = createNetServer(); await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve)); const address = probe.address(); assert.ok(address && typeof address === "object"); const port = address.port; await new Promise((resolve) => probe.close(resolve));
+const server = spawn(process.execPath, ["dist/cli.js", "serve", String(port)], { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] });
+const base = `http://127.0.0.1:${port}`;
 const routes = {};
 const get = async (path) => { const response = await fetch(`${base}${path}`); routes[`GET ${path}`] = response.status; return { response, value: await response.json() }; };
 try {
-  const health = await get("/health"); assert.equal(health.response.status, 200); assert.equal(health.value.ok, true);
+  let health; for (let attempt = 0; attempt < 100; attempt++) { try { health = await get("/health"); break; } catch { await new Promise((resolve) => setTimeout(resolve, 20)); } }
+  assert.ok(health);
+  health = await get("/health"); assert.equal(health.response.status, 200); assert.equal(health.value.ok, true);
   const listed = await get("/v1/tasks"); assert.equal(listed.response.status, 200); assert.equal(listed.value.tasks.length, 20);
   const taskId = listed.value.tasks[0].id;
   const shown = await get(`/v1/tasks/${taskId}`); assert.equal(shown.response.status, 200); assert.equal(shown.value.task.id, taskId);
@@ -31,7 +37,7 @@ try {
   routes["POST /v1/score"] = scoreResponse.status; assert.equal(scoreResponse.status, 200); assert.equal((await scoreResponse.json()).score, 1);
   const provenance = await get("/v1/provenance"); assert.equal(provenance.response.status, 200); assert.equal(provenance.value.provenance.length, 1);
   const entry = await get("/v1/index-entry"); assert.equal(entry.response.status, 200); assert.equal(entry.value.task_count, 20);
-} finally { await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+} finally { if (server.exitCode === null) { server.kill("SIGTERM"); await once(server, "exit"); } }
 
 const transport = new StdioClientTransport({ command: process.execPath, args: ["dist/cli.js", "mcp"], cwd: process.cwd(), stderr: "pipe" });
 const client = new Client({ name: "benchmark-core-e2e", version: "0.1.0" });
@@ -55,4 +61,4 @@ const generatedProvenance = core.provenanceMarkdown(echoBenchmark);
 assert.equal(generatedProvenance, await readFile("examples/echo/data/PROVENANCE.md", "utf8"));
 const artifact = { task_count: cliReport.rows.length, scores: cliReport.rows.map((row) => row.score), route_status_codes: routes, tool_names: toolNames };
 await mkdir("artifacts", { recursive: true }); await writeFile("artifacts/e2e-report.json", `${JSON.stringify(artifact, null, 2)}\n`);
-console.log(`e2e: ${artifact.task_count} tasks, ${Object.keys(routes).length} routes, ${toolNames.length} MCP tools`);
+console.log(`e2e: ${artifact.task_count} tasks, timeout return, invalid port 1, CLI serve ${Object.keys(routes).length} routes, MCP ${toolNames.length} tools -> all surfaces passed, ok`);
