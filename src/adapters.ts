@@ -12,9 +12,11 @@ export function mockAdapter<T extends Task = Task>(options: { seed?: number; pol
     async chat(request, context) {
       const task = context.task as T; const turn = context.turn ?? 1;
       const policy = good(task) ? options.policies?.good(task) : options.policies?.bad(task);
-      const scripted = policy?.[turn - 1] ?? { content: "__mock_incorrect__" };
-      const toolCalls = (scripted.toolCalls ?? []).map((call, index) => ({ id: call.id ?? `mock-${turn}-${index + 1}`, name: call.name, args: call.args }));
-      const content = scripted.content ?? ""; const inputTokens = request.messages.reduce((sum, message) => sum + message.content.length, 0);
+      const scripted = policy?.[turn - 1];
+      if (!scripted && options.policies) throw new Error(`Mock policy has no scripted turn ${turn} for task ${task.id}.`);
+      const selected = scripted ?? { content: "__mock_incorrect__" };
+      const toolCalls = (selected.toolCalls ?? []).map((call, index) => ({ id: call.id ?? `mock-${turn}-${index + 1}`, name: call.name, args: call.args }));
+      const content = selected.content ?? ""; const inputTokens = request.messages.reduce((sum, message) => sum + message.content.length, 0);
       return { content, toolCalls, usage: { inputTokens, outputTokens: content.length, totalTokens: inputTokens + content.length, costUsd: 0 }, costUsd: 0 };
     },
   };
