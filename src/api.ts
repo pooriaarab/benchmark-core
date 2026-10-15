@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { indexEntry } from "./metadata.js";
-import type { Answer, Benchmark, Task } from "./types.js";
+import type { Benchmark, Task, Trace } from "./types.js";
 
 const LIMIT = 1_048_576;
 function json(value: unknown, status = 200, cors = false): Response { return Response.json(value, { status, ...(cors ? { headers: { "access-control-allow-origin": "*" } } : {}) }); }
@@ -14,6 +14,7 @@ async function body(request: Request): Promise<unknown> {
   try { return JSON.parse(new TextDecoder().decode(bytes)) as unknown; } catch { throw new Error("INVALID_JSON"); }
 }
 function object(value: unknown): Record<string, unknown> | undefined { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined; }
+function trace(value: unknown): Trace | undefined { const raw = object(value); if (!raw || (raw.answer !== undefined && typeof raw.answer !== "string") || (raw.toolLog !== undefined && !Array.isArray(raw.toolLog))) return undefined; return raw as Trace; }
 export function createHandler<T extends Task>(benchmark: Benchmark<T>) {
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url); const cors = request.method === "GET";
@@ -25,10 +26,10 @@ export function createHandler<T extends Task>(benchmark: Benchmark<T>) {
         return task ? json({ task }, 200, true) : error("NOT_FOUND", "Task not found.", 404, true);
       }
       if (request.method === "POST" && url.pathname === "/v1/score") {
-        const payload = object(await body(request)); const taskId = payload?.taskId; const answer = payload?.answer;
-        if (typeof taskId !== "string" || answer === undefined) return error("INVALID_REQUEST", "taskId and answer are required.", 400);
+        const payload = object(await body(request)); const taskId = payload?.taskId; const submission = trace(payload?.submission);
+        if (typeof taskId !== "string" || !submission) return error("INVALID_REQUEST", "taskId and submission are required.", 400);
         const task = await benchmark.getTask(taskId); if (!task) return error("NOT_FOUND", "Task not found.", 404);
-        return json({ taskId, ...(await benchmark.score(task, answer as Answer)) });
+        return json({ taskId, ...(await benchmark.score(task, submission, typeof payload?.seed === "number" ? { seed: payload.seed } : {})) });
       }
       if (request.method === "GET" && url.pathname === "/v1/provenance") return json({ provenance: benchmark.definition.provenance }, 200, true);
       if (request.method === "GET" && url.pathname === "/v1/index-entry") return json(await indexEntry(benchmark), 200, true);
