@@ -8,6 +8,7 @@ authors:
 version: "0.1.0"
 date-released: 2026-10-15
 license: MIT
+doi: 10.5281/zenodo.23422358
 repository-code: https://github.com/pooriaarab/benchmark-core
 url: "https://aibenchmarkindex.com"
 abstract: "Typed engine for single-answer and tool-use AI benchmarks with SDK, CLI, MCP, and HTTP API surfaces."
