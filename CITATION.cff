@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it using the metadata below."
+title: "benchmark-core"
+type: software
+authors:
+  - family-names: Arab
+    given-names: Pooria
+version: "0.1.0"
+date-released: 2026-10-15
+license: MIT
+repository-code: https://github.com/pooriaarab/benchmark-core
+url: "https://aibenchmarkindex.com"
+abstract: "Typed engine for single-answer and tool-use AI benchmarks with SDK, CLI, MCP, and HTTP API surfaces."
+keywords:
+  - ai-benchmark
+  - llm-evaluation
+  - agent-evaluation
+  - deterministic-grader
