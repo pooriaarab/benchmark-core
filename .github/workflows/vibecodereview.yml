@@ -22,7 +22,7 @@ jobs:
         with:
           vibetrace_ingest_url: ${{ secrets.VIBETRACE_INGEST_URL }}
           vibetrace_ingest_token: ${{ secrets.VIBETRACE_INGEST_TOKEN }}
-          max_council_runs: 3
+          max_council_runs: 6
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_code_oauth_token_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           claude_code_oauth_token_4: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_4 }}
